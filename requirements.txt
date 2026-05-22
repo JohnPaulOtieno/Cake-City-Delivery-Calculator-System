@@ -1,0 +1,13 @@
+Django==6.0.5
+psycopg2-binary==2.9.9
+python-decouple==3.8
+geopy==2.4.1
+googlemaps==4.10.0
+django-crispy-forms==2.1
+crispy-bootstrap5>=2023.10
+qrcode==7.4.2
+pillow>=10.0
+plotly>=5.0
+africastalking>=2.0
+
+

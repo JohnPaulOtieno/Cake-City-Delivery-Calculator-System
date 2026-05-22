@@ -1,0 +1,250 @@
+{% extends 'base.html' %}
+
+{% block title %}Analytics Dashboard - Cake Delivery System{% endblock %}
+
+{% block extra_css %}
+<style>
+    .chart-container {
+        position: relative;
+        height: 300px;
+        margin-bottom: 30px;
+    }
+    
+    .chart-wrapper {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h2 class="mb-3">
+            <i class="fas fa-chart-bar"></i> Analytics Dashboard
+        </h2>
+        <p class="text-muted">Delivery metrics and insights for the last {{ days }} days</p>
+    </div>
+</div>
+
+<!-- Summary Statistics -->
+<div class="row mb-4">
+    <div class="col-md-3 col-sm-6">
+        <div class="stat-card">
+            <div class="stat-value">{{ total_deliveries }}</div>
+            <div class="stat-label">Total Deliveries</div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="stat-card">
+            <div class="stat-value">{{ total_revenue }}</div>
+            <div class="stat-label">Total Revenue</div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="stat-card">
+            <div class="stat-value">{{ avg_distance }}</div>
+            <div class="stat-label">Avg Distance</div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="stat-card">
+            <div class="stat-value">{{ avg_fare }}</div>
+            <div class="stat-label">Avg Fare</div>
+        </div>
+    </div>
+</div>
+
+<!-- Delivery Map Heatmap -->
+<div class="chart-wrapper">
+    <h5 class="mb-3">
+        <i class="fas fa-map-location-dot"></i> Delivery Zones Heatmap
+    </h5>
+    <div id="map" style="height: 500px; border-radius: 8px;"></div>
+</div>
+
+<!-- Charts Grid -->
+<div class="row">
+    <!-- Deliveries by Store -->
+    <div class="col-lg-6">
+        <div class="chart-wrapper">
+            <h5 class="mb-3">
+                <i class="fas fa-store"></i> Deliveries by Store
+            </h5>
+            <div style="max-height: 350px;">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Store</th>
+                            <th class="text-end">Count</th>
+                            <th class="text-end">Revenue</th>
+                            <th class="text-end">Avg Dist</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in deliveries_by_store %}
+                        <tr>
+                            <td>
+                                <small>{{ item.store__name }}</small>
+                            </td>
+                            <td class="text-end">
+                                <span class="badge bg-primary">{{ item.count }}</span>
+                            </td>
+                            <td class="text-end">
+                                <strong>KES {{ item.total_revenue }}</strong>
+                            </td>
+                            <td class="text-end">
+                                <small>{{ item.avg_distance|floatformat:1 }} km</small>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center text-muted py-3">No data</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Deliveries by Status -->
+    <div class="col-lg-6">
+        <div class="chart-wrapper">
+            <h5 class="mb-3">
+                <i class="fas fa-circle"></i> Deliveries by Status
+            </h5>
+            <div style="max-height: 350px;">
+                <table class="table table-sm mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Status</th>
+                            <th class="text-end">Count</th>
+                            <th>Progress</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in deliveries_by_status %}
+                        <tr>
+                            <td>
+                                {% if item.status == 'pending' %}
+                                <span class="badge bg-warning">Pending</span>
+                                {% elif item.status == 'confirmed' %}
+                                <span class="badge bg-info">Confirmed</span>
+                                {% elif item.status == 'in_transit' %}
+                                <span class="badge bg-primary">In Transit</span>
+                                {% elif item.status == 'delivered' %}
+                                <span class="badge bg-success">Delivered</span>
+                                {% elif item.status == 'cancelled' %}
+                                <span class="badge bg-danger">Cancelled</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                <strong>{{ item.count }}</strong>
+                            </td>
+                            <td>
+                                {% widthratio item.count total_deliveries 100 as percentage %}
+                                <div class="progress" style="height: 20px;">
+                                    <div class="progress-bar" role="progressbar" style="width: {{ percentage }}%;">
+                                        {{ percentage }}%
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="3" class="text-center text-muted py-3">No data</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Peak Hours Chart -->
+<div class="chart-wrapper">
+    <h5 class="mb-3">
+        <i class="fas fa-clock"></i> Deliveries by Hour (Peak Hours)
+    </h5>
+    <div class="row">
+        {% for hour_data in deliveries_by_hour %}
+        <div class="col-sm-2 col-3 mb-2 text-center">
+            <div style="background: linear-gradient(to top, #ff6b6b 0%, #ff6b6b {{ hour_data.height_percentage }}%, #eee {{ hour_data.height_percentage }}%, #eee 100%); height: 150px; border-radius: 4px; position: relative;">
+                <div style="position: absolute; bottom: 5px; width: 100%; text-align: center;">
+                    <strong style="color: #000; font-size: 0.9rem;">{{ hour_data.count }}</strong>
+                </div>
+            </div>
+            <small style="color: #666;">{{ hour_data.hour }}</small>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Time Range Filter -->
+<div class="card mt-4">
+    <div class="card-body">
+        <h6 class="mb-3">
+            <i class="fas fa-calendar"></i> Time Range
+        </h6>
+        <div class="btn-group" role="group">
+            <a href="?days=7" class="btn btn-outline-primary {% if days == 7 %}active{% endif %}">
+                Last 7 Days
+            </a>
+            <a href="?days=30" class="btn btn-outline-primary {% if days == 30 %}active{% endif %}">
+                Last 30 Days
+            </a>
+            <a href="?days=90" class="btn btn-outline-primary {% if days == 90 %}active{% endif %}">
+                Last 90 Days
+            </a>
+            <a href="?days=365" class="btn btn-outline-primary {% if days == 365 %}active{% endif %}">
+                Last Year
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-heat/0.2.0/leaflet-heat.js"></script>
+
+<script>
+    // Initialize heatmap
+    const NAIROBI_CENTER = [-1.286389, 36.817223];
+    const heatmapData = {{ heatmap_data|safe }};
+    
+    const map = L.map('map').setView(NAIROBI_CENTER, 11);
+    
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+        maxZoom: 19,
+    }).addTo(map);
+    
+    if (heatmapData && heatmapData.length > 0) {
+        // Convert heatmap data to intensity array
+        const intensityData = heatmapData.map(point => [point.lat, point.lng, point.intensity]);
+        
+        L.heatLayer(intensityData, {
+            radius: 25,
+            blur: 15,
+            maxZoom: 17,
+            gradient: {
+                0.2: '#4ecdc4',
+                0.5: '#ffd700',
+                0.7: '#ff9500',
+                1.0: '#ff6b6b'
+            }
+        }).addTo(map);
+    }
+    
+    // Math filter for template (used in peak hours chart)
+    if (typeof django === 'undefined') {
+        window.django = { ngettext: () => '' };
+    }
+</script>
+{% endblock %}

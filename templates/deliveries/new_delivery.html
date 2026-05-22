@@ -1,0 +1,398 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}New Delivery - Cake Delivery System{% endblock %}
+
+{% block extra_css %}
+<style>
+    .map-container {
+        position: relative;
+        margin-bottom: 20px;
+    }
+    
+    .fare-badge {
+        position: absolute;
+        bottom: 10px;
+        right: 10px;
+        z-index: 1000;
+        background: white;
+        padding: 10px 15px;
+        border-radius: 5px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        text-align: center;
+    }
+    
+    .distance-unit {
+        font-size: 0.85rem;
+        color: #666;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-3 d-none d-lg-block">
+        <!-- Sidebar with store list -->
+        <div class="sidebar-nav">
+            <h5 class="mb-3"><i class="fas fa-store"></i> Active Stores</h5>
+            <div id="store-list">
+                <div class="text-muted">Loading stores...</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-9">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="mb-0">
+                    <i class="fas fa-plus-circle"></i> New Delivery Order
+                </h3>
+            </div>
+            <div class="card-body">
+                <!-- Map Container -->
+                <div class="map-container">
+                    <div id="map"></div>
+                    <div class="fare-badge" id="fare-badge" style="display: none;">
+                        <div>Distance</div>
+                        <div class="fare-amount" id="distance-display">-</div>
+                        <div class="distance-unit">km</div>
+                    </div>
+                </div>
+                
+                <!-- Delivery Form -->
+                <form id="delivery-form" method="post" novalidate>
+                    {% csrf_token %}
+                    
+                    {% if form.non_field_errors %}
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        {% for error in form.non_field_errors %}
+                        <strong>Error:</strong> {{ error }}
+                        {% endfor %}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Customer Address Field -->
+                    <div class="mb-3">
+                        <label for="{{ form.customer_address.id_for_label }}" class="form-label">
+                            <i class="fas fa-map-marker-alt"></i> Customer Address *
+                        </label>
+                        <input type="text" 
+                               class="form-control {% if form.customer_address.errors %}is-invalid{% endif %}" 
+                               id="{{ form.customer_address.id_for_label }}"
+                               name="customer_address"
+                               placeholder="Enter customer address in Nairobi..."
+                               value="{{ form.customer_address.value|default:'' }}"
+                               autocomplete="off">
+                        <small class="form-text text-muted">Type an address and press Enter or click on the map</small>
+                        {% if form.customer_address.errors %}
+                        <div class="invalid-feedback d-block">
+                            {{ form.customer_address.errors.0 }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Store Selection -->
+                    <div class="mb-3">
+                        <label for="{{ form.store.id_for_label }}" class="form-label">
+                            <i class="fas fa-store"></i> Store *
+                        </label>
+                        <select class="form-select {% if form.store.errors %}is-invalid{% endif %}" 
+                                id="{{ form.store.id_for_label }}"
+                                name="store">
+                            <option value="">-- Select a store --</option>
+                            {% for store in stores %}
+                            <option value="{{ store.id }}">{{ store.name }} - {{ store.address }}</option>
+                            {% endfor %}
+                        </select>
+                        <small class="form-text text-muted">Will be auto-filled with nearest store. You can override.</small>
+                        {% if form.store.errors %}
+                        <div class="invalid-feedback d-block">
+                            {{ form.store.errors.0 }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Fare Display -->
+                    <div class="fare-display" id="fare-display" style="display: none;">
+                        <h3>Estimated Fare</h3>
+                        <div>
+                            <span class="fare-amount" id="fare-amount">-</span>
+                            <span class="fare-unit">KES</span>
+                        </div>
+                        <div class="distance-info">
+                            Distance: <strong id="distance-info">-</strong> km
+                        </div>
+                    </div>
+                    
+                    <!-- Customer Phone -->
+                    <div class="mb-3">
+                        <label for="{{ form.customer_phone.id_for_label }}" class="form-label">
+                            <i class="fas fa-phone"></i> Customer Phone (Optional)
+                        </label>
+                        <input type="tel" 
+                               class="form-control {% if form.customer_phone.errors %}is-invalid{% endif %}" 
+                               id="{{ form.customer_phone.id_for_label }}"
+                               name="customer_phone"
+                               placeholder="+254712345678"
+                               value="{{ form.customer_phone.value|default:'' }}">
+                        <small class="form-text text-muted">For SMS notification (e.g., +254712345678)</small>
+                        {% if form.customer_phone.errors %}
+                        <div class="invalid-feedback d-block">
+                            {{ form.customer_phone.errors.0 }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Notes -->
+                    <div class="mb-3">
+                        <label for="{{ form.notes.id_for_label }}" class="form-label">
+                            <i class="fas fa-sticky-note"></i> Delivery Notes
+                        </label>
+                        <textarea class="form-control {% if form.notes.errors %}is-invalid{% endif %}" 
+                                  id="{{ form.notes.id_for_label }}"
+                                  name="notes"
+                                  rows="3"
+                                  placeholder="Any special delivery instructions...">{{ form.notes.value|default:'' }}</textarea>
+                        {% if form.notes.errors %}
+                        <div class="invalid-feedback d-block">
+                            {{ form.notes.errors.0 }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Hidden Fields -->
+                    <input type="hidden" id="{{ form.customer_latitude.id_for_label }}" name="customer_latitude" value="{{ form.customer_latitude.value|default:'' }}">
+                    <input type="hidden" id="{{ form.customer_longitude.id_for_label }}" name="customer_longitude" value="{{ form.customer_longitude.value|default:'' }}">
+                    <input type="hidden" id="{{ form.distance_km.id_for_label }}" name="distance_km" value="{{ form.distance_km.value|default:'' }}">
+                    <input type="hidden" id="{{ form.fare_ksh.id_for_label }}" name="fare_ksh" value="{{ form.fare_ksh.value|default:'' }}">
+                    
+                    <!-- Loading Indicator -->
+                    <div class="loading" id="loading-indicator">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Calculating fare...</p>
+                    </div>
+                    
+                    <!-- Submit Button -->
+                    <button type="submit" class="btn btn-primary btn-lg w-100" id="submit-btn">
+                        <i class="fas fa-check-circle"></i> Confirm Delivery Order
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const GOOGLE_MAPS_API_KEY = '{{ GOOGLE_MAPS_API_KEY }}';
+    const NAIROBI_CENTER = [-1.286389, 36.817223]; // Nairobi coordinates
+    
+    let map;
+    let markers = {};
+    let routeLine = null;
+    let selectedStore = null;
+    
+    // Initialize map
+    function initMap() {
+        map = L.map('map').setView(NAIROBI_CENTER, 11);
+        
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors',
+            maxZoom: 19,
+        }).addTo(map);
+        
+        // Click on map to set address
+        map.on('click', function(e) {
+            reverseGeocode(e.latlng.lat, e.latlng.lng);
+        });
+    }
+    
+    // Reverse geocode coordinates to address
+    function reverseGeocode(lat, lng) {
+        if (!GOOGLE_MAPS_API_KEY || GOOGLE_MAPS_API_KEY === 'your-key-here') {
+            alert('Google Maps API key not configured. Please enter address manually.');
+            return;
+        }
+        
+        const geocoder = new google.maps.Geocoder();
+        geocoder.geocode({location: {lat, lng}}, (results, status) => {
+            if (status === 'OK' && results[0]) {
+                document.getElementById('customer_address').value = results[0].formatted_address;
+                updateFarePreview();
+            }
+        });
+    }
+    
+    // Update fare preview when address or store changes
+    function updateFarePreview() {
+        const addressInput = document.getElementById('customer_address');
+        const storeSelect = document.getElementById('store-select');
+        const address = addressInput.value.trim();
+        
+        if (!address) {
+            clearMap();
+            return;
+        }
+        
+        const storeId = storeSelect.value;
+        
+        showLoading(true);
+        
+        fetch('{% url "fare_preview" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            },
+            body: JSON.stringify({
+                customer_address: address,
+                store_id: storeId || null
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            showLoading(false);
+            
+            if (data.error) {
+                alert('Error: ' + data.error);
+                clearMap();
+                return;
+            }
+            
+            // Update hidden fields
+            document.getElementById('customer_latitude').value = data.customer_lat;
+            document.getElementById('customer_longitude').value = data.customer_lng;
+            document.getElementById('distance_km').value = data.distance_km;
+            document.getElementById('fare_ksh').value = data.fare_ksh;
+            
+            // Update store selection if it changed
+            if (data.nearest_store_id && !storeId) {
+                storeSelect.value = data.nearest_store_id;
+                selectedStore = data.nearest_store_id;
+            }
+            
+            // Update map
+            updateMap(
+                data.store_lat,
+                data.store_lng,
+                data.customer_lat,
+                data.customer_lng,
+                data.distance_km
+            );
+            
+            // Update fare display
+            updateFareDisplay(data.fare_ksh, data.distance_km, data.nearest_store_name);
+        })
+        .catch(error => {
+            showLoading(false);
+            console.error('Error:', error);
+            alert('Failed to calculate fare. Please try again.');
+        });
+    }
+    
+    // Update map with route and markers
+    function updateMap(storeLat, storeLng, customerLat, customerLng, distanceKm) {
+        // Clear previous markers and route
+        Object.values(markers).forEach(marker => map.removeLayer(marker));
+        if (routeLine) map.removeLayer(routeLine);
+        
+        markers = {};
+        
+        // Store marker (blue)
+        markers.store = L.circleMarker([storeLat, storeLng], {
+            radius: 10,
+            fillColor: '#4ecdc4',
+            color: '#fff',
+            weight: 2,
+            opacity: 1,
+            fillOpacity: 0.8
+        }).addTo(map).bindPopup('<b>Store</b><br>Pickup location');
+        
+        // Customer marker (red)
+        markers.customer = L.circleMarker([customerLat, customerLng], {
+            radius: 10,
+            fillColor: '#ff6b6b',
+            color: '#fff',
+            weight: 2,
+            opacity: 1,
+            fillOpacity: 0.8
+        }).addTo(map).bindPopup('<b>Customer</b><br>Delivery location');
+        
+        // Route line
+        routeLine = L.polyline(
+            [[storeLat, storeLng], [customerLat, customerLng]],
+            {color: '#ff6b6b', weight: 2, opacity: 0.7, dashArray: '5, 5'}
+        ).addTo(map);
+        
+        // Fit map to show both markers
+        const group = new L.featureGroup([markers.store, markers.customer]);
+        map.fitBounds(group.getBounds().pad(0.1));
+    }
+    
+    // Update fare display
+    function updateFareDisplay(fare, distance, storeName) {
+        const display = document.getElementById('fare-display');
+        document.getElementById('fare-amount').textContent = fare.toLocaleString();
+        document.getElementById('distance-info').textContent = distance.toFixed(2);
+        document.getElementById('distance-display').textContent = distance.toFixed(2);
+        display.style.display = 'block';
+    }
+    
+    // Clear map
+    function clearMap() {
+        Object.values(markers).forEach(marker => map.removeLayer(marker));
+        if (routeLine) map.removeLayer(routeLine);
+        document.getElementById('fare-display').style.display = 'none';
+        document.getElementById('fare-badge').style.display = 'none';
+    }
+    
+    // Show/hide loading
+    function showLoading(show) {
+        document.getElementById('loading-indicator').style.display = show ? 'block' : 'none';
+    }
+    
+    // Load and display store list in sidebar
+    function loadStores() {
+        const storeList = document.getElementById('store-list');
+        const stores = Array.from(document.querySelectorAll(`#store-select option`))
+            .filter(opt => opt.value)
+            .map(opt => ({id: opt.value, name: opt.text}));
+        
+        storeList.innerHTML = stores.map(store => `
+            <a href="#" class="nav-link store-link" data-store-id="${store.id}">
+                <i class="fas fa-map-pin"></i> ${store.name.split('-')[0].trim()}
+            </a>
+        `).join('');
+        
+        // Add click handlers
+        document.querySelectorAll('.store-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const storeId = link.dataset.storeId;
+                document.getElementById('store-select').value = storeId;
+                updateFarePreview();
+            });
+        });
+    }
+    
+    // Event listeners
+    document.getElementById('customer_address').addEventListener('change', updateFarePreview);
+    document.getElementById('store-select').addEventListener('change', updateFarePreview);
+    document.getElementById('delivery-form').addEventListener('submit', function(e) {
+        if (!document.getElementById('fare_ksh').value) {
+            e.preventDefault();
+            alert('Please calculate fare first by entering an address.');
+        }
+    });
+    
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        initMap();
+        loadStores();
+    });
+</script>
+{% endblock %}

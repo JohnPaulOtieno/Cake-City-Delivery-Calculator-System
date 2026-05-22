@@ -1,0 +1,248 @@
+{% extends 'base.html' %}
+
+{% block title %}Delivery Receipt #{{ delivery.id }} - Cake Delivery System{% endblock %}
+
+{% block extra_css %}
+<style>
+    .receipt-container {
+        max-width: 600px;
+        margin: 0 auto;
+        background: white;
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .receipt-header {
+        text-align: center;
+        border-bottom: 2px solid #ff6b6b;
+        padding-bottom: 20px;
+        margin-bottom: 20px;
+    }
+    
+    .receipt-header h1 {
+        color: #ff6b6b;
+        margin: 0;
+        font-size: 2rem;
+    }
+    
+    .receipt-number {
+        font-size: 1.2rem;
+        color: #666;
+        margin-top: 5px;
+    }
+    
+    .receipt-section {
+        margin-bottom: 25px;
+    }
+    
+    .receipt-section h3 {
+        color: #333;
+        border-bottom: 1px solid #eee;
+        padding-bottom: 10px;
+        margin-bottom: 15px;
+        font-size: 1.1rem;
+    }
+    
+    .receipt-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 10px;
+        padding: 8px 0;
+    }
+    
+    .receipt-label {
+        color: #666;
+        font-weight: 500;
+    }
+    
+    .receipt-value {
+        color: #333;
+        font-weight: 600;
+    }
+    
+    .receipt-footer {
+        text-align: center;
+        border-top: 2px solid #ff6b6b;
+        padding-top: 20px;
+        color: #666;
+    }
+    
+    .fare-highlight {
+        background: linear-gradient(135deg, #4ecdc4, #ff6b6b);
+        color: white;
+        padding: 20px;
+        border-radius: 8px;
+        text-align: center;
+        margin: 20px 0;
+    }
+    
+    .fare-amount {
+        font-size: 2.5rem;
+        font-weight: 700;
+    }
+    
+    .status-badge {
+        display: inline-block;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-weight: 600;
+    }
+    
+    .status-pending {
+        background-color: #fff3cd;
+        color: #856404;
+    }
+    
+    .status-confirmed {
+        background-color: #d1ecf1;
+        color: #0c5460;
+    }
+    
+    .status-in_transit {
+        background-color: #cce5ff;
+        color: #004085;
+    }
+    
+    .status-delivered {
+        background-color: #d4edda;
+        color: #155724;
+    }
+    
+    .status-cancelled {
+        background-color: #f8d7da;
+        color: #721c24;
+    }
+    
+    @media print {
+        body {
+            background: white;
+        }
+        .navbar, .footer, .btn, .no-print {
+            display: none;
+        }
+        .receipt-container {
+            box-shadow: none;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="receipt-container">
+    <!-- Header -->
+    <div class="receipt-header">
+        <h1><i class="fas fa-check-circle"></i> Receipt</h1>
+        <div class="receipt-number">Order #{{ delivery.id }}</div>
+    </div>
+    
+    <!-- Fare Highlight -->
+    <div class="fare-highlight">
+        <div style="font-size: 0.9rem; margin-bottom: 10px;">DELIVERY FARE</div>
+        <div class="fare-amount">KES {{ delivery.fare_ksh }}</div>
+    </div>
+    
+    <!-- Delivery Information -->
+    <div class="receipt-section">
+        <h3><i class="fas fa-package"></i> Delivery Details</h3>
+        <div class="receipt-row">
+            <span class="receipt-label">Order ID:</span>
+            <span class="receipt-value">#{{ delivery.id }}</span>
+        </div>
+        <div class="receipt-row">
+            <span class="receipt-label">Status:</span>
+            <span>
+                <span class="status-badge status-{{ delivery.status }}">
+                    {{ delivery.get_status_display }}
+                </span>
+            </span>
+        </div>
+        <div class="receipt-row">
+            <span class="receipt-label">Date & Time:</span>
+            <span class="receipt-value">{{ delivery.created_at|date:"d M Y, H:i" }}</span>
+        </div>
+    </div>
+    
+    <!-- Store Information -->
+    <div class="receipt-section">
+        <h3><i class="fas fa-store"></i> Store</h3>
+        <div class="receipt-row">
+            <span class="receipt-label">Store Name:</span>
+            <span class="receipt-value">{{ delivery.store.name }}</span>
+        </div>
+        <div class="receipt-row">
+            <span class="receipt-label">Address:</span>
+            <span class="receipt-value">{{ delivery.store.address }}</span>
+        </div>
+        {% if delivery.store.phone_number %}
+        <div class="receipt-row">
+            <span class="receipt-label">Phone:</span>
+            <span class="receipt-value">{{ delivery.store.phone_number }}</span>
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- Customer Information -->
+    <div class="receipt-section">
+        <h3><i class="fas fa-map-marker-alt"></i> Delivery Destination</h3>
+        <div class="receipt-row">
+            <span class="receipt-label">Address:</span>
+        </div>
+        <div style="background: #f8f9fa; padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+            <p class="mb-0">{{ delivery.customer_address }}</p>
+        </div>
+        {% if delivery.customer_phone %}
+        <div class="receipt-row">
+            <span class="receipt-label">Phone:</span>
+            <span class="receipt-value">{{ delivery.customer_phone }}</span>
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- Distance & Fare Details -->
+    <div class="receipt-section">
+        <h3><i class="fas fa-calculator"></i> Fare Calculation</h3>
+        <div class="receipt-row">
+            <span class="receipt-label">Distance:</span>
+            <span class="receipt-value">{{ delivery.distance_km|floatformat:2 }} km</span>
+        </div>
+        <div class="receipt-row">
+            <span class="receipt-label">Rate:</span>
+            <span class="receipt-value">KES 200 (≤10km) + KES 50/km</span>
+        </div>
+        <div class="receipt-row" style="border-top: 1px solid #eee; padding-top: 10px; margin-top: 10px;">
+            <span class="receipt-label"><strong>Total Fare:</strong></span>
+            <span class="receipt-value" style="font-size: 1.3rem;">KES {{ delivery.fare_ksh }}</span>
+        </div>
+    </div>
+    
+    <!-- Special Notes -->
+    {% if delivery.notes %}
+    <div class="receipt-section">
+        <h3><i class="fas fa-sticky-note"></i> Special Instructions</h3>
+        <div style="background: #f8f9fa; padding: 10px; border-radius: 5px;">
+            <p class="mb-0">{{ delivery.notes }}</p>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Footer -->
+    <div class="receipt-footer">
+        <p><strong>Thank you for using Cake Delivery Service!</strong></p>
+        <p style="font-size: 0.9rem;">This is an automated receipt. Keep for your records.</p>
+        <p style="font-size: 0.85rem; color: #999; margin-top: 10px;">
+            Generated on {{ delivery.created_at|date:"d M Y \a\t H:i" }}
+        </p>
+    </div>
+</div>
+
+<!-- Action Buttons -->
+<div class="text-center mt-4 no-print">
+    <button onclick="window.print()" class="btn btn-primary me-2">
+        <i class="fas fa-print"></i> Print Receipt
+    </button>
+    <a href="{% url 'order_history' %}" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left"></i> Back to History
+    </a>
+</div>
+{% endblock %}
