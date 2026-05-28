@@ -1,46 +1,160 @@
 {% extends 'base.html' %}
-{% load crispy_forms_tags %}
 
 {% block title %}New Delivery - Cake Delivery System{% endblock %}
 
 {% block extra_css %}
 <style>
+    /* ── Map ────────────────────────────────────────────────────────── */
+    #map {
+        height: 460px;
+        border-radius: 10px;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+        margin-bottom: 22px;
+    }
+
     .map-container {
         position: relative;
-        margin-bottom: 20px;
     }
-    
+
+    /* Distance badge that floats over the map */
     .fare-badge {
         position: absolute;
-        bottom: 10px;
-        right: 10px;
-        z-index: 1000;
-        background: white;
-        padding: 10px 15px;
-        border-radius: 5px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        bottom: 36px;
+        right: 12px;
+        z-index: 5;
+        background: #fff;
+        padding: 10px 16px;
+        border-radius: 10px;
+        box-shadow: 0 3px 12px rgba(0,0,0,0.22);
         text-align: center;
+        min-width: 100px;
+        pointer-events: none;
     }
-    
-    .distance-unit {
-        font-size: 0.85rem;
-        color: #666;
+    .fare-badge .badge-label {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #888;
+        margin-bottom: 2px;
+    }
+    .fare-badge .badge-value {
+        font-size: 1.4rem;
+        font-weight: 800;
+        color: var(--primary-color);
+        line-height: 1;
+    }
+    .fare-badge .badge-unit {
+        font-size: 0.75rem;
+        color: #aaa;
+    }
+
+    /* ── Google Places pac-container styling ────────────────────────── */
+    .pac-container {
+        border-radius: 8px;
+        box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+        border: 1px solid #e0e0e0;
+        font-family: 'Segoe UI', sans-serif;
+        margin-top: 4px;
+        z-index: 9999;
+    }
+    .pac-item {
+        padding: 9px 14px;
+        font-size: 0.88rem;
+        cursor: pointer;
+        border-top: 1px solid #f5f5f5;
+    }
+    .pac-item:hover { background: rgba(255,107,107,0.06); }
+    .pac-item-query { font-weight: 600; color: #111; }
+    .pac-matched { color: var(--primary-color); }
+    .pac-icon { display: none; } /* hide default Google pin icon */
+
+    /* ── Fare display card ──────────────────────────────────────────── */
+    .fare-display {
+        background: linear-gradient(135deg, #4ecdc4, #ff6b6b);
+        color: #fff;
+        padding: 20px 24px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        animation: fadeSlide 0.35s ease;
+    }
+    @keyframes fadeSlide {
+        from { opacity: 0; transform: translateY(-8px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+    .fare-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 28px;
+        align-items: center;
+    }
+    .fare-block h6 {
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        opacity: 0.82;
+        margin-bottom: 2px;
+    }
+    .fare-block .val {
+        font-size: 1.8rem;
+        font-weight: 800;
+        line-height: 1.1;
+    }
+    .fare-block .unit {
+        font-size: 0.9rem;
+        opacity: 0.88;
+    }
+    .fare-block .label-sm {
+        font-size: 0.86rem;
+        opacity: 0.9;
+    }
+    .method-pill {
+        display: inline-block;
+        margin-top: 10px;
+        font-size: 0.72rem;
+        background: rgba(255,255,255,0.22);
+        border-radius: 20px;
+        padding: 3px 10px;
+        letter-spacing: 0.03em;
+    }
+
+    /* ── Loading ────────────────────────────────────────────────────── */
+    .calc-loading {
+        display: none;
+        align-items: center;
+        gap: 10px;
+        color: #555;
+        font-size: 0.9rem;
+        padding: 10px 0 4px;
+    }
+    .calc-loading.show { display: flex; }
+
+    /* ── Sidebar store links ─────────────────────────────────────────── */
+    .sidebar-nav .store-link {
+        transition: background 0.15s, border-left-color 0.15s;
+    }
+    .sidebar-nav .store-link.active-store {
+        background: rgba(255,107,107,0.1);
+        color: var(--primary-color);
+        border-left-color: var(--primary-color);
+        font-weight: 600;
     }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="row">
+
+    <!-- ── Sidebar: store list ───────────────────────────────────────── -->
     <div class="col-lg-3 d-none d-lg-block">
-        <!-- Sidebar with store list -->
         <div class="sidebar-nav">
             <h5 class="mb-3"><i class="fas fa-store"></i> Active Stores</h5>
             <div id="store-list">
-                <div class="text-muted">Loading stores...</div>
+                <div class="text-muted small">Loading stores…</div>
             </div>
         </div>
     </div>
-    
+
+    <!-- ── Main panel ───────────────────────────────────────────────── -->
     <div class="col-lg-9">
         <div class="card">
             <div class="card-header">
@@ -49,20 +163,21 @@
                 </h3>
             </div>
             <div class="card-body">
-                <!-- Map Container -->
+
+                <!-- Map -->
                 <div class="map-container">
                     <div id="map"></div>
-                    <div class="fare-badge" id="fare-badge" style="display: none;">
-                        <div>Distance</div>
-                        <div class="fare-amount" id="distance-display">-</div>
-                        <div class="distance-unit">km</div>
+                    <div id="fare-badge" class="fare-badge" style="display:none;">
+                        <div class="badge-label">Distance</div>
+                        <div class="badge-value" id="distance-display">—</div>
+                        <div class="badge-unit">km</div>
                     </div>
                 </div>
-                
+
                 <!-- Delivery Form -->
                 <form id="delivery-form" method="post" novalidate>
                     {% csrf_token %}
-                    
+
                     {% if form.non_field_errors %}
                     <div class="alert alert-danger alert-dismissible fade show" role="alert">
                         {% for error in form.non_field_errors %}
@@ -71,328 +186,470 @@
                         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
                     {% endif %}
-                    
-                    <!-- Customer Address Field -->
+
+                    <!-- ── Customer Address (Google Places Autocomplete) ── -->
                     <div class="mb-3">
-                        <label for="{{ form.customer_address.id_for_label }}" class="form-label">
+                        <label for="customer-address" class="form-label">
                             <i class="fas fa-map-marker-alt"></i> Customer Address *
                         </label>
-                        <input type="text" 
-                               class="form-control {% if form.customer_address.errors %}is-invalid{% endif %}" 
-                               id="{{ form.customer_address.id_for_label }}"
+                        <input type="text"
+                               class="form-control {% if form.customer_address.errors %}is-invalid{% endif %}"
+                               id="customer-address"
                                name="customer_address"
-                               placeholder="Enter customer address in Nairobi..."
+                               placeholder="Start typing a Nairobi address or landmark…"
                                value="{{ form.customer_address.value|default:'' }}"
                                autocomplete="off">
-                        <small class="form-text text-muted">Type an address and press Enter or click on the map</small>
+                        <small class="form-text text-muted">
+                            <i class="fas fa-search"></i>
+                            Powered by Google Maps — suggestions appear as you type
+                        </small>
                         {% if form.customer_address.errors %}
-                        <div class="invalid-feedback d-block">
-                            {{ form.customer_address.errors.0 }}
-                        </div>
+                        <div class="invalid-feedback d-block">{{ form.customer_address.errors.0 }}</div>
                         {% endif %}
                     </div>
-                    
-                    <!-- Store Selection -->
+
+                    <!-- ── Store selection ─────────────────────────────── -->
                     <div class="mb-3">
-                        <label for="{{ form.store.id_for_label }}" class="form-label">
-                            <i class="fas fa-store"></i> Store *
+                        <label for="store-select" class="form-label">
+                            <i class="fas fa-store"></i> Dispatching Store *
                         </label>
-                        <select class="form-select {% if form.store.errors %}is-invalid{% endif %}" 
-                                id="{{ form.store.id_for_label }}"
+                        <select class="form-select {% if form.store.errors %}is-invalid{% endif %}"
+                                id="store-select"
                                 name="store">
-                            <option value="">-- Select a store --</option>
+                            <option value="">— Select a store —</option>
                             {% for store in stores %}
-                            <option value="{{ store.id }}">{{ store.name }} - {{ store.address }}</option>
+                            <option value="{{ store.id }}"
+                                    data-lat="{{ store.latitude }}"
+                                    data-lng="{{ store.longitude }}">
+                                {{ store.name }} — {{ store.address }}
+                            </option>
                             {% endfor %}
                         </select>
-                        <small class="form-text text-muted">Will be auto-filled with nearest store. You can override.</small>
+                        <small class="form-text text-muted">
+                            Auto-filled with nearest store. You can override.
+                        </small>
                         {% if form.store.errors %}
-                        <div class="invalid-feedback d-block">
-                            {{ form.store.errors.0 }}
-                        </div>
+                        <div class="invalid-feedback d-block">{{ form.store.errors.0 }}</div>
                         {% endif %}
                     </div>
-                    
-                    <!-- Fare Display -->
-                    <div class="fare-display" id="fare-display" style="display: none;">
-                        <h3>Estimated Fare</h3>
-                        <div>
-                            <span class="fare-amount" id="fare-amount">-</span>
-                            <span class="fare-unit">KES</span>
+
+                    <!-- ── Fare result card (shown after calculation) ─── -->
+                    <div id="fare-display" class="fare-display" style="display:none;">
+                        <div class="fare-row">
+                            <div class="fare-block">
+                                <h6><i class="fas fa-money-bill-wave"></i> Delivery Fare</h6>
+                                <span class="val" id="fare-amount">—</span>
+                                <span class="unit"> KES</span>
+                            </div>
+                            <div class="fare-block">
+                                <h6><i class="fas fa-road"></i> Distance</h6>
+                                <span class="val" id="distance-info">—</span>
+                                <span class="unit"> km</span>
+                            </div>
+                            <div class="fare-block">
+                                <h6><i class="fas fa-store"></i> From Store</h6>
+                                <span class="label-sm" id="store-name-display">—</span>
+                            </div>
                         </div>
-                        <div class="distance-info">
-                            Distance: <strong id="distance-info">-</strong> km
-                        </div>
+                        <span class="method-pill" id="method-pill"></span>
                     </div>
-                    
-                    <!-- Customer Phone -->
+
+                    <!-- Loading indicator -->
+                    <div class="calc-loading" id="loading-indicator">
+                        <div class="spinner-border spinner-border-sm text-danger" role="status"></div>
+                        <span>Calculating fare via Google Maps…</span>
+                    </div>
+
+                    <!-- Error alert -->
+                    <div class="alert alert-danger" id="fare-error" style="display:none;"></div>
+
+                    <!-- ── Customer Phone ──────────────────────────────── -->
                     <div class="mb-3">
-                        <label for="{{ form.customer_phone.id_for_label }}" class="form-label">
+                        <label for="id_customer_phone" class="form-label">
                             <i class="fas fa-phone"></i> Customer Phone (Optional)
                         </label>
-                        <input type="tel" 
-                               class="form-control {% if form.customer_phone.errors %}is-invalid{% endif %}" 
-                               id="{{ form.customer_phone.id_for_label }}"
+                        <input type="tel"
+                               class="form-control {% if form.customer_phone.errors %}is-invalid{% endif %}"
+                               id="id_customer_phone"
                                name="customer_phone"
                                placeholder="+254712345678"
                                value="{{ form.customer_phone.value|default:'' }}">
                         <small class="form-text text-muted">For SMS notification (e.g., +254712345678)</small>
                         {% if form.customer_phone.errors %}
-                        <div class="invalid-feedback d-block">
-                            {{ form.customer_phone.errors.0 }}
-                        </div>
+                        <div class="invalid-feedback d-block">{{ form.customer_phone.errors.0 }}</div>
                         {% endif %}
                     </div>
-                    
-                    <!-- Notes -->
+
+                    <!-- ── Delivery Notes ──────────────────────────────── -->
                     <div class="mb-3">
-                        <label for="{{ form.notes.id_for_label }}" class="form-label">
+                        <label for="id_notes" class="form-label">
                             <i class="fas fa-sticky-note"></i> Delivery Notes
                         </label>
-                        <textarea class="form-control {% if form.notes.errors %}is-invalid{% endif %}" 
-                                  id="{{ form.notes.id_for_label }}"
+                        <textarea class="form-control {% if form.notes.errors %}is-invalid{% endif %}"
+                                  id="id_notes"
                                   name="notes"
                                   rows="3"
-                                  placeholder="Any special delivery instructions...">{{ form.notes.value|default:'' }}</textarea>
+                                  placeholder="Any special delivery instructions…">{{ form.notes.value|default:'' }}</textarea>
                         {% if form.notes.errors %}
-                        <div class="invalid-feedback d-block">
-                            {{ form.notes.errors.0 }}
-                        </div>
+                        <div class="invalid-feedback d-block">{{ form.notes.errors.0 }}</div>
                         {% endif %}
                     </div>
-                    
-                    <!-- Hidden Fields -->
-                    <input type="hidden" id="{{ form.customer_latitude.id_for_label }}" name="customer_latitude" value="{{ form.customer_latitude.value|default:'' }}">
-                    <input type="hidden" id="{{ form.customer_longitude.id_for_label }}" name="customer_longitude" value="{{ form.customer_longitude.value|default:'' }}">
-                    <input type="hidden" id="{{ form.distance_km.id_for_label }}" name="distance_km" value="{{ form.distance_km.value|default:'' }}">
-                    <input type="hidden" id="{{ form.fare_ksh.id_for_label }}" name="fare_ksh" value="{{ form.fare_ksh.value|default:'' }}">
-                    
-                    <!-- Loading Indicator -->
-                    <div class="loading" id="loading-indicator">
-                        <div class="spinner-border" role="status">
-                            <span class="visually-hidden">Loading...</span>
-                        </div>
-                        <p class="mt-2">Calculating fare...</p>
-                    </div>
-                    
-                    <!-- Submit Button -->
+
+                    <!-- Hidden fields -->
+                    <input type="hidden" id="customer_latitude"  name="customer_latitude"  value="{{ form.customer_latitude.value|default:'' }}">
+                    <input type="hidden" id="customer_longitude" name="customer_longitude" value="{{ form.customer_longitude.value|default:'' }}">
+                    <input type="hidden" id="distance_km"        name="distance_km"        value="{{ form.distance_km.value|default:'' }}">
+                    <input type="hidden" id="fare_ksh"           name="fare_ksh"           value="{{ form.fare_ksh.value|default:'' }}">
+
+                    <!-- Submit -->
                     <button type="submit" class="btn btn-primary btn-lg w-100" id="submit-btn">
                         <i class="fas fa-check-circle"></i> Confirm Delivery Order
                     </button>
                 </form>
-            </div>
-        </div>
-    </div>
-</div>
+
+            </div><!-- /.card-body -->
+        </div><!-- /.card -->
+    </div><!-- /.col -->
+</div><!-- /.row -->
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    const GOOGLE_MAPS_API_KEY = '{{ GOOGLE_MAPS_API_KEY }}';
-    const NAIROBI_CENTER = [-1.286389, 36.817223]; // Nairobi coordinates
-    
-    let map;
-    let markers = {};
-    let routeLine = null;
-    let selectedStore = null;
-    
-    // Initialize map
-    function initMap() {
-        map = L.map('map').setView(NAIROBI_CENTER, 11);
-        
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap contributors',
-            maxZoom: 19,
-        }).addTo(map);
-        
-        // Click on map to set address
-        map.on('click', function(e) {
-            reverseGeocode(e.latlng.lat, e.latlng.lng);
-        });
-    }
-    
-    // Reverse geocode coordinates to address
-    function reverseGeocode(lat, lng) {
-        if (!GOOGLE_MAPS_API_KEY || GOOGLE_MAPS_API_KEY === 'your-key-here') {
-            alert('Google Maps API key not configured. Please enter address manually.');
+// ── Constants ────────────────────────────────────────────────────────────────
+const NAIROBI         = { lat: -1.286389, lng: 36.817223 };
+const CSRF_TOKEN      = document.querySelector('[name=csrfmiddlewaretoken]').value;
+const FARE_PREVIEW_URL = "{% url 'fare_preview' %}";
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let map, directionsService, directionsRenderer, geocoder;
+let storeMarker    = null;
+let customerMarker = null;
+let selectedLat    = null;
+let selectedLng    = null;
+
+// ── Google Maps initialisation ────────────────────────────────────────────────
+function initGoogleMap() {
+
+    // 1. Map
+    map = new google.maps.Map(document.getElementById('map'), {
+        center: NAIROBI,
+        zoom: 12,
+        mapTypeControl: true,
+        streetViewControl: false,
+        fullscreenControl: true,
+        zoomControl: true,
+        gestureHandling: 'cooperative',
+    });
+
+    // 2. Directions (shows real road route)
+    directionsService  = new google.maps.DirectionsService();
+    directionsRenderer = new google.maps.DirectionsRenderer({
+        suppressMarkers: true,        // we draw our own markers
+        polylineOptions: {
+            strokeColor:   '#ff6b6b',
+            strokeWeight:  5,
+            strokeOpacity: 0.82,
+        },
+    });
+    directionsRenderer.setMap(map);
+
+    // 3. Geocoder for reverse-geocoding map clicks
+    geocoder = new google.maps.Geocoder();
+
+    // 4. Places Autocomplete on the address input
+    const addressInput = document.getElementById('customer-address');
+    const acOptions = {
+        componentRestrictions: { country: 'ke' },
+        fields: ['formatted_address', 'geometry', 'name'],
+        bounds: new google.maps.LatLngBounds(
+            { lat: -1.444, lng: 36.650 },   // SW Nairobi
+            { lat: -1.150, lng: 37.103 }    // NE Nairobi
+        ),
+        strictBounds: false,
+    };
+    const autocomplete = new google.maps.places.Autocomplete(addressInput, acOptions);
+
+    // Bias suggestions to current map viewport
+    autocomplete.bindTo('bounds', map);
+
+    autocomplete.addListener('place_changed', function () {
+        const place = autocomplete.getPlace();
+        if (!place.geometry || !place.geometry.location) {
+            // User typed and pressed Enter without choosing a suggestion
+            triggerFarePreview(addressInput.value.trim(), null, null);
             return;
         }
-        
-        const geocoder = new google.maps.Geocoder();
-        geocoder.geocode({location: {lat, lng}}, (results, status) => {
-            if (status === 'OK' && results[0]) {
-                document.getElementById('customer_address').value = results[0].formatted_address;
-                updateFarePreview();
-            }
-        });
-    }
-    
-    // Update fare preview when address or store changes
-    function updateFarePreview() {
-        const addressInput = document.getElementById('customer_address');
-        const storeSelect = document.getElementById('store-select');
-        const address = addressInput.value.trim();
-        
-        if (!address) {
-            clearMap();
-            return;
+        const lat     = place.geometry.location.lat();
+        const lng     = place.geometry.location.lng();
+        const address = place.formatted_address || place.name;
+        addressInput.value = address;
+        selectedLat = lat;
+        selectedLng = lng;
+        triggerFarePreview(address, lat, lng);
+    });
+
+    // 5. Map click → reverse geocode and fill address
+    map.addListener('click', function (e) {
+        reverseGeocodeClick(e.latLng.lat(), e.latLng.lng());
+    });
+
+    loadStores();
+}
+
+// ── Reverse geocode a map click via Google ───────────────────────────────────
+function reverseGeocodeClick(lat, lng) {
+    geocoder.geocode({ location: { lat, lng } }, function (results, status) {
+        let address;
+        if (status === 'OK' && results[0]) {
+            address = results[0].formatted_address;
+        } else {
+            address = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
         }
-        
-        const storeId = storeSelect.value;
-        
-        showLoading(true);
-        
-        fetch('{% url "fare_preview" %}', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-            },
-            body: JSON.stringify({
-                customer_address: address,
-                store_id: storeId || null
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            showLoading(false);
-            
-            if (data.error) {
-                alert('Error: ' + data.error);
-                clearMap();
-                return;
+        document.getElementById('customer-address').value = address;
+        selectedLat = lat;
+        selectedLng = lng;
+        triggerFarePreview(address, lat, lng);
+    });
+}
+
+// ── Map: draw markers and driving route ──────────────────────────────────────
+function updateMap(storeLat, storeLng, custLat, custLng) {
+    const storePos    = { lat: storeLat, lng: storeLng };
+    const customerPos = { lat: custLat,  lng: custLng  };
+
+    // Remove old markers
+    if (storeMarker)    storeMarker.setMap(null);
+    if (customerMarker) customerMarker.setMap(null);
+
+    // Store marker — teal circle
+    storeMarker = new google.maps.Marker({
+        position: storePos,
+        map: map,
+        title: 'Store (dispatch point)',
+        icon: {
+            path:         google.maps.SymbolPath.CIRCLE,
+            fillColor:    '#4ecdc4',
+            fillOpacity:  1,
+            strokeColor:  '#ffffff',
+            strokeWeight: 3,
+            scale:        11,
+        },
+        zIndex: 2,
+    });
+    storeMarker.addListener('click', () => {
+        new google.maps.InfoWindow({
+            content: '<div style="font-weight:600;color:#4ecdc4">📦 Store</div><div style="font-size:0.85rem">Dispatch point</div>'
+        }).open(map, storeMarker);
+    });
+
+    // Customer marker — coral circle
+    customerMarker = new google.maps.Marker({
+        position: customerPos,
+        map: map,
+        title: 'Customer (delivery point)',
+        icon: {
+            path:         google.maps.SymbolPath.CIRCLE,
+            fillColor:    '#ff6b6b',
+            fillOpacity:  1,
+            strokeColor:  '#ffffff',
+            strokeWeight: 3,
+            scale:        11,
+        },
+        zIndex: 2,
+    });
+    customerMarker.addListener('click', () => {
+        new google.maps.InfoWindow({
+            content: '<div style="font-weight:600;color:#ff6b6b">🏠 Customer</div><div style="font-size:0.85rem">Delivery destination</div>'
+        }).open(map, customerMarker);
+    });
+
+    // Request driving directions (shows real road path)
+    directionsService.route(
+        {
+            origin:      storePos,
+            destination: customerPos,
+            travelMode:  google.maps.TravelMode.DRIVING,
+        },
+        function (result, status) {
+            if (status === google.maps.DirectionsStatus.OK) {
+                directionsRenderer.setDirections(result);
+            } else {
+                // Fallback: straight dashed line
+                directionsRenderer.setDirections({ routes: [] });
+                new google.maps.Polyline({
+                    path:          [storePos, customerPos],
+                    strokeColor:   '#ff6b6b',
+                    strokeWeight:  4,
+                    strokeOpacity: 0.7,
+                    icons: [{
+                        icon:   { path: 'M 0,-1 0,1', strokeOpacity: 1, scale: 4 },
+                        offset: '0',
+                        repeat: '20px'
+                    }],
+                    map: map,
+                });
             }
-            
-            // Update hidden fields
-            document.getElementById('customer_latitude').value = data.customer_lat;
-            document.getElementById('customer_longitude').value = data.customer_lng;
-            document.getElementById('distance_km').value = data.distance_km;
-            document.getElementById('fare_ksh').value = data.fare_ksh;
-            
-            // Update store selection if it changed
-            if (data.nearest_store_id && !storeId) {
-                storeSelect.value = data.nearest_store_id;
-                selectedStore = data.nearest_store_id;
-            }
-            
-            // Update map
-            updateMap(
-                data.store_lat,
-                data.store_lng,
-                data.customer_lat,
-                data.customer_lng,
-                data.distance_km
-            );
-            
-            // Update fare display
-            updateFareDisplay(data.fare_ksh, data.distance_km, data.nearest_store_name);
-        })
-        .catch(error => {
-            showLoading(false);
-            console.error('Error:', error);
-            alert('Failed to calculate fare. Please try again.');
-        });
+        }
+    );
+
+    // Fit both points in view
+    const bounds = new google.maps.LatLngBounds();
+    bounds.extend(storePos);
+    bounds.extend(customerPos);
+    map.fitBounds(bounds, 80);   // 80px padding all sides
+}
+
+// ── Fare preview (calls Django backend) ──────────────────────────────────────
+function triggerFarePreview(address, lat, lng) {
+    if (!address) { clearFareDisplay(); return; }
+
+    const storeId = document.getElementById('store-select').value || null;
+    showLoading(true);
+    hideFareError();
+
+    const body = {
+        customer_address: address,
+        store_id: storeId ? parseInt(storeId, 10) : null,
+    };
+    if (lat !== null && lat !== undefined && lng !== null && lng !== undefined) {
+        body.customer_lat = lat;
+        body.customer_lng = lng;
     }
-    
-    // Update map with route and markers
-    function updateMap(storeLat, storeLng, customerLat, customerLng, distanceKm) {
-        // Clear previous markers and route
-        Object.values(markers).forEach(marker => map.removeLayer(marker));
-        if (routeLine) map.removeLayer(routeLine);
-        
-        markers = {};
-        
-        // Store marker (blue)
-        markers.store = L.circleMarker([storeLat, storeLng], {
-            radius: 10,
-            fillColor: '#4ecdc4',
-            color: '#fff',
-            weight: 2,
-            opacity: 1,
-            fillOpacity: 0.8
-        }).addTo(map).bindPopup('<b>Store</b><br>Pickup location');
-        
-        // Customer marker (red)
-        markers.customer = L.circleMarker([customerLat, customerLng], {
-            radius: 10,
-            fillColor: '#ff6b6b',
-            color: '#fff',
-            weight: 2,
-            opacity: 1,
-            fillOpacity: 0.8
-        }).addTo(map).bindPopup('<b>Customer</b><br>Delivery location');
-        
-        // Route line
-        routeLine = L.polyline(
-            [[storeLat, storeLng], [customerLat, customerLng]],
-            {color: '#ff6b6b', weight: 2, opacity: 0.7, dashArray: '5, 5'}
-        ).addTo(map);
-        
-        // Fit map to show both markers
-        const group = new L.featureGroup([markers.store, markers.customer]);
-        map.fitBounds(group.getBounds().pad(0.1));
+
+    fetch(FARE_PREVIEW_URL, {
+        method:  'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken':  CSRF_TOKEN,
+        },
+        body: JSON.stringify(body),
+    })
+    .then(r => r.json())
+    .then(data => {
+        showLoading(false);
+        if (data.error) { showFareError(data.error); clearFareDisplay(); return; }
+        applyFareResult(data);
+    })
+    .catch(err => {
+        showLoading(false);
+        showFareError('Network error — please check your connection and try again.');
+        console.error(err);
+    });
+}
+
+function applyFareResult(data) {
+    // Populate hidden form fields
+    document.getElementById('customer_latitude').value  = data.customer_lat;
+    document.getElementById('customer_longitude').value = data.customer_lng;
+    document.getElementById('distance_km').value        = data.distance_km;
+    document.getElementById('fare_ksh').value           = data.fare_ksh;
+
+    // Auto-select nearest store if none manually chosen
+    const storeSelect = document.getElementById('store-select');
+    if (!storeSelect.value && data.nearest_store_id) {
+        storeSelect.value = data.nearest_store_id;
+        highlightSidebarStore(data.nearest_store_id);
     }
-    
-    // Update fare display
-    function updateFareDisplay(fare, distance, storeName) {
-        const display = document.getElementById('fare-display');
-        document.getElementById('fare-amount').textContent = fare.toLocaleString();
-        document.getElementById('distance-info').textContent = distance.toFixed(2);
-        document.getElementById('distance-display').textContent = distance.toFixed(2);
-        display.style.display = 'block';
+
+    // Update map
+    updateMap(data.store_lat, data.store_lng, data.customer_lat, data.customer_lng);
+
+    // Fare card
+    document.getElementById('fare-amount').textContent       = Number(data.fare_ksh).toLocaleString();
+    document.getElementById('distance-info').textContent     = parseFloat(data.distance_km).toFixed(2);
+    document.getElementById('distance-display').textContent  = parseFloat(data.distance_km).toFixed(2);
+    document.getElementById('store-name-display').textContent = data.nearest_store_name || '—';
+
+    const methodLabels = {
+        google_maps:           '🗺️ Real road distance via Google Maps',
+        haversine_estimated:   '📐 Estimated road distance (approx.)',
+        haversine_preresolved: '📐 Estimated distance',
+    };
+    document.getElementById('method-pill').textContent =
+        methodLabels[data.method] || data.method;
+
+    document.getElementById('fare-display').style.display = 'block';
+    document.getElementById('fare-badge').style.display   = 'block';
+}
+
+// ── Sidebar store list ────────────────────────────────────────────────────────
+function loadStores() {
+    const storeList = document.getElementById('store-list');
+    const options   = Array.from(
+        document.querySelectorAll('#store-select option')
+    ).filter(o => o.value);
+
+    if (!options.length) {
+        storeList.innerHTML = '<p class="text-muted small">No active stores.</p>';
+        return;
     }
-    
-    // Clear map
-    function clearMap() {
-        Object.values(markers).forEach(marker => map.removeLayer(marker));
-        if (routeLine) map.removeLayer(routeLine);
-        document.getElementById('fare-display').style.display = 'none';
-        document.getElementById('fare-badge').style.display = 'none';
-    }
-    
-    // Show/hide loading
-    function showLoading(show) {
-        document.getElementById('loading-indicator').style.display = show ? 'block' : 'none';
-    }
-    
-    // Load and display store list in sidebar
-    function loadStores() {
-        const storeList = document.getElementById('store-list');
-        const stores = Array.from(document.querySelectorAll(`#store-select option`))
-            .filter(opt => opt.value)
-            .map(opt => ({id: opt.value, name: opt.text}));
-        
-        storeList.innerHTML = stores.map(store => `
-            <a href="#" class="nav-link store-link" data-store-id="${store.id}">
-                <i class="fas fa-map-pin"></i> ${store.name.split('-')[0].trim()}
-            </a>
-        `).join('');
-        
-        // Add click handlers
-        document.querySelectorAll('.store-link').forEach(link => {
-            link.addEventListener('click', (e) => {
-                e.preventDefault();
-                const storeId = link.dataset.storeId;
-                document.getElementById('store-select').value = storeId;
-                updateFarePreview();
-            });
-        });
-    }
-    
-    // Event listeners
-    document.getElementById('customer_address').addEventListener('change', updateFarePreview);
-    document.getElementById('store-select').addEventListener('change', updateFarePreview);
-    document.getElementById('delivery-form').addEventListener('submit', function(e) {
-        if (!document.getElementById('fare_ksh').value) {
+
+    storeList.innerHTML = options.map(o => `
+        <a href="#" class="nav-link store-link" data-store-id="${o.value}">
+            <i class="fas fa-map-pin"></i> ${o.text.split('—')[0].trim()}
+        </a>`
+    ).join('');
+
+    storeList.querySelectorAll('.store-link').forEach(link => {
+        link.addEventListener('click', e => {
             e.preventDefault();
-            alert('Please calculate fare first by entering an address.');
-        }
+            document.getElementById('store-select').value = link.dataset.storeId;
+            highlightSidebarStore(link.dataset.storeId);
+            const addr = document.getElementById('customer-address').value.trim();
+            if (addr) triggerFarePreview(addr, selectedLat, selectedLng);
+        });
     });
-    
-    // Initialize on page load
-    document.addEventListener('DOMContentLoaded', function() {
-        initMap();
-        loadStores();
+}
+
+function highlightSidebarStore(storeId) {
+    document.querySelectorAll('.store-link').forEach(el => {
+        el.classList.toggle('active-store', el.dataset.storeId == storeId);
     });
+}
+
+// ── Store dropdown manual override ───────────────────────────────────────────
+document.getElementById('store-select').addEventListener('change', function () {
+    highlightSidebarStore(this.value);
+    const addr = document.getElementById('customer-address').value.trim();
+    if (addr) triggerFarePreview(addr, selectedLat, selectedLng);
+});
+
+// ── Form submission guard ─────────────────────────────────────────────────────
+document.getElementById('delivery-form').addEventListener('submit', function (e) {
+    if (!document.getElementById('fare_ksh').value) {
+        e.preventDefault();
+        showFareError('Please select a delivery address and wait for the fare to calculate before confirming.');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+});
+
+// ── UI helpers ────────────────────────────────────────────────────────────────
+function showLoading(show) {
+    document.getElementById('loading-indicator').classList.toggle('show', show);
+}
+
+function showFareError(msg) {
+    const el = document.getElementById('fare-error');
+    el.innerHTML = '<i class="fas fa-exclamation-triangle"></i> ' + msg;
+    el.style.display = 'block';
+}
+
+function hideFareError() {
+    document.getElementById('fare-error').style.display = 'none';
+}
+
+function clearFareDisplay() {
+    document.getElementById('fare-display').style.display = 'none';
+    document.getElementById('fare-badge').style.display   = 'none';
+    ['customer_latitude','customer_longitude','distance_km','fare_ksh'].forEach(id => {
+        document.getElementById(id).value = '';
+    });
+}
+
+// ── Boot: wait for Google Maps to be ready ────────────────────────────────────
+document.addEventListener('google-maps-ready', initGoogleMap);
+
+// Safety net: if Google fired the callback before our listener was attached
+if (typeof google !== 'undefined' && google.maps) initGoogleMap();
 </script>
 {% endblock %}

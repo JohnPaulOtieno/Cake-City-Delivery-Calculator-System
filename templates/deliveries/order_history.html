@@ -50,13 +50,13 @@
         <form method="get" class="row g-3">
             <div class="col-md-3">
                 <label class="form-label">Date Range</label>
-                {% for value, label in filter_form.date_range %}
+                {% for radio in filter_form.date_range %}
                 <div class="form-check">
-                    <input class="form-check-input" type="radio" name="date_range" 
-                           id="range_{{ value }}" value="{{ value }}"
-                           {% if filter_form.cleaned_data.date_range == value %}checked{% endif %}>
-                    <label class="form-check-label" for="range_{{ value }}">
-                        {{ label }}
+                    <input class="form-check-input" type="radio" name="{{ filter_form.date_range.name }}" 
+                           id="{{ radio.id_for_label }}" value="{{ radio.data.value }}"
+                           {% if radio.data.selected %}checked{% endif %}>
+                    <label class="form-check-label" for="{{ radio.id_for_label }}">
+                        {{ radio.choice_label }}
                     </label>
                 </div>
                 {% endfor %}
@@ -165,14 +165,14 @@
         </li>
         {% endif %}
         
-        {% for page_num in "x"|rjust:total_pages %}
-            {% if page_num|add:"1" == current_page %}
+        {% for _ in "x"|rjust:total_pages %}
+            {% if forloop.counter == current_page %}
             <li class="page-item active">
-                <span class="page-link">{{ page_num|add:"1" }}</span>
+                <span class="page-link">{{ forloop.counter }}</span>
             </li>
             {% else %}
             <li class="page-item">
-                <a class="page-link" href="?page={{ page_num|add:'1' }}">{{ page_num|add:"1" }}</a>
+                <a class="page-link" href="?page={{ forloop.counter }}">{{ forloop.counter }}</a>
             </li>
             {% endif %}
         {% endfor %}

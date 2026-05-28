@@ -1,5 +1,22 @@
 from django.contrib import admin
-from .models import Delivery
+from .models import Delivery, PricingConfiguration
+
+@admin.register(PricingConfiguration)
+class PricingConfigurationAdmin(admin.ModelAdmin):
+    """Admin interface for Pricing logic. Singleton model."""
+    
+    list_display = ['__str__', 'base_fare', 'base_km', 'extra_rate_per_km', 'updated_at']
+    
+    def has_add_permission(self, request):
+        """Prevent adding multiple pricing configurations."""
+        if self.model.objects.exists():
+            return False
+        return super().has_add_permission(request)
+
+    def has_delete_permission(self, request, obj=None):
+        """Prevent deleting the singleton configuration."""
+        return False
+
 
 
 @admin.register(Delivery)

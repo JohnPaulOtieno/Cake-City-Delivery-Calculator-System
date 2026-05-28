@@ -15,7 +15,8 @@ from stores.models import Store
 from .utils import (
     calculate_fare,
     find_nearest_store,
-    get_delivery_details
+    get_delivery_details,
+    search_address_suggestions,
 )
 
 
@@ -64,51 +65,104 @@ def new_delivery_view(request):
 
 
 @login_required
+@require_http_methods(["GET"])
+def address_autocomplete(request):
+    """
+    AJAX endpoint that returns address suggestions for the autocomplete dropdown.
+    Uses OpenStreetMap Nominatim — no API key required.
+
+    Query params:
+        q: The partial address string typed by the manager
+    """
+    query = request.GET.get('q', '').strip()
+    if len(query) < 3:
+        return JsonResponse({'suggestions': []})
+
+    suggestions = search_address_suggestions(query, limit=7)
+    return JsonResponse({'suggestions': suggestions})
+
+
+@login_required
 @require_http_methods(["POST"])
 def fare_preview_ajax(request):
     """
     AJAX endpoint for live fare preview.
-    
-    Takes customer address and optional store_id.
-    Returns JSON with:
-    - nearest_store_id
-    - nearest_store_name
-    - store_lat, store_lng
-    - distance_km
-    - fare_ksh
-    - customer_lat, customer_lng
-    - decoded_address
+
+    Accepts JSON body with:
+        customer_address: str
+        store_id: int | null  (null = auto-detect nearest store)
+        customer_lat: float | null  (pre-resolved, skips geocoding)
+        customer_lng: float | null  (pre-resolved, skips geocoding)
+
+    Returns JSON with fare, distance, store, and coordinates.
     """
     try:
         data = json.loads(request.body)
         customer_address = data.get('customer_address', '').strip()
         store_id = data.get('store_id')
-        
+        # Accept pre-resolved coordinates from autocomplete selection
+        pre_lat = data.get('customer_lat')
+        pre_lng = data.get('customer_lng')
+
         if not customer_address:
             return JsonResponse({'error': 'Address is required'}, status=400)
-        
+
+        # Convert pre-resolved coordinates if provided
+        if pre_lat is not None and pre_lng is not None:
+            try:
+                pre_lat = float(pre_lat)
+                pre_lng = float(pre_lng)
+            except (TypeError, ValueError):
+                pre_lat = None
+                pre_lng = None
+
         # Determine which store to use
         if store_id:
-            # User selected a specific store
             store = get_object_or_404(Store, id=store_id, is_active=True)
         else:
-            # Find nearest store
-            store = Store.objects.filter(is_active=True).first()
+            # Find nearest store using customer coordinates if available
+            if pre_lat is not None and pre_lng is not None:
+                store, _ = find_nearest_store(pre_lat, pre_lng)
+            else:
+                # Will geocode first inside get_delivery_details then pick nearest
+                # For now pick any active store; after geocoding we could re-evaluate.
+                store = Store.objects.filter(is_active=True).first()
+
             if not store:
                 return JsonResponse({'error': 'No active stores available'}, status=400)
-        
+
         # Get delivery details (distance & fare)
         delivery_details = get_delivery_details(
             float(store.latitude),
             float(store.longitude),
-            customer_address
+            customer_address,
+            customer_lat=pre_lat,
+            customer_lng=pre_lng,
         )
-        
+
+        # If nearest store wasn't manually selected, find it again now that we have coords
+        if not store_id and delivery_details['customer_lat'] is not None:
+            nearest, _ = find_nearest_store(
+                delivery_details['customer_lat'],
+                delivery_details['customer_lng'],
+            )
+            if nearest:
+                store = nearest
+                # Recalculate distance from the true nearest store
+                delivery_details = get_delivery_details(
+                    float(store.latitude),
+                    float(store.longitude),
+                    customer_address,
+                    customer_lat=delivery_details['customer_lat'],
+                    customer_lng=delivery_details['customer_lng'],
+                )
+
         if delivery_details['fare'] is None:
-            return JsonResponse({
-                'error': 'Could not calculate distance. Please verify the address.'
-            }, status=400)
-        
+            return JsonResponse(
+                {'error': 'Could not calculate distance. Please check the address and try again.'},
+                status=400,
+            )
+
         return JsonResponse({
             'success': True,
             'nearest_store_id': store.id,
@@ -120,11 +174,11 @@ def fare_preview_ajax(request):
             'customer_lat': delivery_details['customer_lat'],
             'customer_lng': delivery_details['customer_lng'],
             'decoded_address': delivery_details['decoded_address'],
-            'method': delivery_details['method']
+            'method': delivery_details['method'],
         })
-    
-    except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+
+    except Exception as exc:
+        return JsonResponse({'error': str(exc)}, status=500)
 
 
 # ============================================================================

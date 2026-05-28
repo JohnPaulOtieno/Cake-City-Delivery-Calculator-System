@@ -7,6 +7,7 @@ urlpatterns = [
     
     # AJAX endpoints
     path('api/fare-preview/', views.fare_preview_ajax, name='fare_preview'),
+    path('api/address-autocomplete/', views.address_autocomplete, name='address_autocomplete'),
     
     # Order history and management
     path('history/', views.order_history_view, name='order_history'),
