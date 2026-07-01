@@ -11,5 +11,6 @@ plotly>=5.0
 africastalking>=2.0
 whitenoise==6.7.0
 dj-database-url==2.2.0
+python-dotenv>=1.0
 
 
