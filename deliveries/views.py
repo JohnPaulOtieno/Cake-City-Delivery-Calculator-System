@@ -3,6 +3,7 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView, LogoutView
+from django.contrib import messages
 from django.db.models import Q, Count, Sum, Avg, F
 from django.utils import timezone
 from datetime import timedelta
@@ -10,7 +11,7 @@ from decimal import Decimal
 import json
 
 from .models import Delivery
-from .forms import DeliveryForm, OrderHistoryFilterForm
+from .forms import DeliveryForm, OrderHistoryFilterForm, SignUpForm
 from stores.models import Store
 from .utils import (
     calculate_fare,
@@ -28,6 +29,23 @@ class CustomLoginView(LoginView):
     """Custom login view for managers."""
     template_name = 'deliveries/login.html'
     redirect_authenticated_user = True
+
+
+@require_http_methods(["GET", "POST"])
+def signup_view(request):
+    if request.user.is_authenticated:
+        return redirect('new_delivery')
+
+    if request.method == 'POST':
+        form = SignUpForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Account created successfully. You can now log in.')
+            return redirect('login')
+    else:
+        form = SignUpForm()
+
+    return render(request, 'deliveries/signup.html', {'form': form})
 
 
 # ============================================================================

@@ -18,18 +18,19 @@ from django.contrib import admin
 from django.contrib.auth.views import LogoutView
 from django.urls import path, include
 from django.views.generic import RedirectView
-from deliveries.views import CustomLoginView
+from deliveries.views import CustomLoginView, signup_view
 
 urlpatterns = [
     # Root URL - redirect to dashboard if authenticated, otherwise to login
     path('', RedirectView.as_view(url='/deliveries/dashboard/', permanent=False)),
-    
+
     # Admin
     path('admin/', admin.site.urls),
-    
+
     # Authentication
     path('login/', CustomLoginView.as_view(), name='login'),
     path('logout/', LogoutView.as_view(), name='logout'),
+    path('signup/', signup_view, name='signup'),
     
     # App URLs
     path('deliveries/', include('deliveries.urls')),
